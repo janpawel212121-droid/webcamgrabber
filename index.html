@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STREAM VIEWER</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg: #0a0a0a;
+            --surface: #151515;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text-dim: #888;
+            --accent: #00ff41;
+            --accent-dim: #00aa2b;
+            --error: #ff3366;
+        }
+        
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.6;
+        }
+        
+        .header {
+            padding: 2rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+        
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+        
+        .header .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .container {
+            flex: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        #session-auth {
+            display: block;
+            max-width: 500px;
+            margin: 4rem auto;
+        }
+        
+        #stream-container {
+            display: none;
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+        
+        input[type="text"].error {
+            border-color: var(--error);
+        }
+        
+        .error-message {
+            color: var(--error);
+            font-size: 0.7rem;
+            margin-top: 0.5rem;
+            display: none;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--surface);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .stream-wrapper {
+            position: relative;
+            background: #000;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        
+        #stream {
+            width: 100%;
+            display: block;
+            max-height: 70vh;
+            object-fit: contain;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-dim);
+            position: relative;
+        }
+        
+        .status-dot::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border: 1px solid currentColor;
+            opacity: 0;
+        }
+        
+        .status-dot.connected {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+        
+        .status-dot.connected::after {
+            border-color: var(--accent);
+            opacity: 0.3;
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        
+        .status-dot.reconnecting {
+            background: #ffa500;
+        }
+        
+        .status-dot.disconnected {
+            background: var(--error);
+        }
+        
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+        
+        #status-text {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+        }
+        
+        #session-display {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            font-family: 'Space Mono', monospace;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+        
+        .btn-danger {
+            background: var(--surface);
+            color: var(--error);
+            border-color: var(--error);
+        }
+        
+        .btn-danger:hover {
+            background: var(--error);
+            color: var(--bg);
+        }
+        
+        .loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+        }
+        
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            #session-auth {
+                margin: 2rem auto;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>▶ STREAM VIEWER</h1>
+        <div class="subtitle">SECURE SESSION AUTHENTICATION REQUIRED</div>
+    </div>
+    
+    <div class="container">
+        <div id="session-auth">
+            <div class="input-group">
+                <label for="session-id-input">SESSION ID</label>
+                <input type="text" id="session-id-input" placeholder="00000000-0000-0000-0000-000000000000" />
+                <div class="error-message" id="error-message">⚠ Invalid session ID format</div>
+            </div>
+            <button id="connect-btn">CONNECT</button>
+        </div>
+        
+        <div id="stream-container">
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">INITIALIZING</span>
+                </div>
+                <span id="session-display"></span>
+            </div>
+            
+            <div class="stream-wrapper">
+                <img id="stream" src="" alt="Stream" />
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>ESTABLISHING CONNECTION</p>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button id="snapshot-btn" class="btn-secondary">CAPTURE FRAME</button>
+                <button id="disconnect-btn" class="btn-danger">DISCONNECT</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        ENCRYPTED STREAM · ACTIVE MONITORING
+    </div>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionIdParam = urlParams.get('session_id');
+        const streamUrlParam = urlParams.get('stream_url');
+        
+        // Pre-fill session ID if provided in URL
+        if (sessionIdParam) {
+            document.getElementById('session-id-input').value = sessionIdParam;
+        }
+        
+        // Validate UUID v4 format
+        function isValidUUID(uuid) {
+            const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return regex.test(uuid);
+        }
+        
+        // State management
+        let sessionId = null;
+        let streamUrl = null;
+        let healthCheckInterval = null;
+        let isUserActive = true;
+        let lastActivityTime = Date.now();
+        
+        // Monitor user activity
+        document.addEventListener('visibilitychange', () => {
+            isUserActive = !document.hidden;
+            if (isUserActive) {
+                lastActivityTime = Date.now();
+                if (healthCheckInterval === null && streamUrl) {
+                    startHealthCheck();
+                }
+            }
+        });
+        
+        ['mousemove', 'keydown', 'click', 'scroll'].forEach(event => {
+            document.addEventListener(event, () => {
+                lastActivityTime = Date.now();
+            });
+        });
+        
+        // Check if user is idle (more than 5 minutes)
+        function isUserIdle() {
+            return (Date.now() - lastActivityTime) > (5 * 60 * 1000);
+        }
+        
+        // Update status
+        function updateStatus(status) {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            statusDot.className = 'status-dot';
+            
+            if (status === 'connected') {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'CONNECTED';
+            } else if (status === 'reconnecting') {
+                statusDot.classList.add('reconnecting');
+                statusText.textContent = 'RECONNECTING';
+            } else if (status === 'disconnected') {
+                statusDot.classList.add('disconnected');
+                statusText.textContent = 'DISCONNECTED';
+            }
+        }
+        
+        // Connect to stream
+        async function connect() {
+            const input = document.getElementById('session-id-input');
+            const errorMsg = document.getElementById('error-message');
+            const sessionIdValue = input.value.trim();
+            
+            // Validate UUID
+            if (!isValidUUID(sessionIdValue)) {
+                input.classList.add('error');
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            input.classList.remove('error');
+            errorMsg.style.display = 'none';
+            
+            sessionId = sessionIdValue;
+            
+            // If stream URL was provided in URL params, use it
+            // Otherwise prompt for it (in production, you'd fetch from backend using session ID)
+            if (streamUrlParam) {
+                streamUrl = streamUrlParam;
+            } else {
+                const ngrokUrl = prompt('ENTER NGROK URL FROM DISCORD:');
+                
+                if (!ngrokUrl) {
+                    alert('NGROK URL REQUIRED');
+                    return;
+                }
+                
+                streamUrl = ngrokUrl;
+            }
+            
+            // Show stream container
+            document.getElementById('session-auth').style.display = 'none';
+            document.getElementById('stream-container').style.display = 'block';
+            document.getElementById('session-display').textContent = `${sessionId.substring(0, 13)}...`;
+            
+            // Set stream source
+            const streamImg = document.getElementById('stream');
+            streamImg.src = `${streamUrl}/stream.mjpeg`;
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'flex';
+            updateStatus('reconnecting');
+            
+            // Hide loading when stream starts
+            streamImg.onload = () => {
+                document.getElementById('loading').style.display = 'none';
+                updateStatus('connected');
+            };
+            
+            streamImg.onerror = () => {
+                updateStatus('disconnected');
+            };
+            
+            // Start health check
+            startHealthCheck();
+        }
+        
+        // Health check
+        function startHealthCheck() {
+            if (healthCheckInterval) {
+                clearInterval(healthCheckInterval);
+            }
+            
+            healthCheckInterval = setInterval(async () => {
+                // Skip health check if user is inactive
+                if (!isUserActive || isUserIdle()) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${streamUrl}/health`, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (response.ok) {
+                        updateStatus('connected');
+                        // Refresh stream if it was disconnected
+                        const streamImg = document.getElementById('stream');
+                        if (!streamImg.complete || streamImg.naturalHeight === 0) {
+                            streamImg.src = `${streamUrl}/stream.mjpeg?t=${Date.now()}`;
+                        }
+                    } else {
+                        updateStatus('reconnecting');
+                        retryConnection();
+                    }
+                } catch (error) {
+                    updateStatus('disconnected');
+                    retryConnection();
+                }
+            }, 3000);
+        }
+        
+        // Retry connection
+        function retryConnection() {
+            if (!isUserActive || isUserIdle()) {
+                return;
+            }
+            
+            const streamImg = document.getElementById('stream');
+            streamImg.src = `${streamUrl}/stream.mjpeg?t=${Date.now()}`;
+        }
+        
+        // Take snapshot
+        function takeSnapshot() {
+            const streamImg = document.getElementById('stream');
+            const canvas = document.createElement('canvas');
+            canvas.width = streamImg.naturalWidth;
+            canvas.height = streamImg.naturalHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(streamImg, 0, 0);
+            
+            // Download as PNG
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `capture-${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+        
+        // Disconnect
+        function disconnect() {
+            if (healthCheckInterval) {
+                clearInterval(healthCheckInterval);
+                healthCheckInterval = null;
+            }
+            
+            const streamImg = document.getElementById('stream');
+            streamImg.src = '';
+            
+            document.getElementById('stream-container').style.display = 'none';
+            document.getElementById('session-auth').style.display = 'block';
+            document.getElementById('session-id-input').value = '';
+            
+            sessionId = null;
+            streamUrl = null;
+        }
+        
+        // Event listeners
+        document.getElementById('connect-btn').addEventListener('click', connect);
+        document.getElementById('snapshot-btn').addEventListener('click', takeSnapshot);
+        document.getElementById('disconnect-btn').addEventListener('click', disconnect);
+        
+        // Allow Enter key to connect
+        document.getElementById('session-id-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                connect();
+            }
+        });
+        
+        // Auto-connect if session ID and stream URL are both in URL
+        if (sessionIdParam && isValidUUID(sessionIdParam) && streamUrlParam) {
+            // Wait a bit for user to see the page, then auto-connect
+            setTimeout(() => {
+                document.getElementById('connect-btn').click();
+            }, 500);
+        }
+    </script>
+</body>
+</html>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionIdParam = urlParams.get('session_id');
+        const streamUrlParam = urlParams.get('stream_url');
+        
+        // Pre-fill session ID if provided in URL
+        if (sessionIdParam) {
+            document.getElementById('session-id-input').value = sessionIdParam;
+        }
+        
+        // Validate UUID v4 format
+        function isValidUUID(uuid) {
+            const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return regex.test(uuid);
+        }
+        
+        // State management
+        let sessionId = null;
+        let streamUrl = null;
+        let healthCheckInterval = null;
+        let isUserActive = true;
+        let lastActivityTime = Date.now();
+        
+        // Monitor user activity
+        document.addEventListener('visibilitychange', () => {
+            isUserActive = !document.hidden;
+            if (isUserActive) {
+                lastActivityTime = Date.now();
+                if (healthCheckInterval === null && streamUrl) {
+                    startHealthCheck();
+                }
+            }
+        });
+        
+        ['mousemove', 'keydown', 'click', 'scroll'].forEach(event => {
+            document.addEventListener(event, () => {
+                lastActivityTime = Date.now();
+            });
+        });
+        
+        // Check if user is idle (more than 5 minutes)
+        function isUserIdle() {
+            return (Date.now() - lastActivityTime) > (5 * 60 * 1000);
+        }
+        
+        // Update status
+        function updateStatus(status) {
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            statusDot.className = 'status-dot';
+            
+            if (status === 'connected') {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected';
+            } else if (status === 'reconnecting') {
+                statusDot.classList.add('reconnecting');
+                statusText.textContent = 'Reconnecting...';
+            } else if (status === 'disconnected') {
+                statusDot.classList.add('disconnected');
+                statusText.textContent = 'Disconnected';
+            }
+        }
+        
+        // Connect to stream
+        async function connect() {
+            const input = document.getElementById('session-id-input');
+            const errorMsg = document.getElementById('error-message');
+            const sessionIdValue = input.value.trim();
+            
+            // Validate UUID
+            if (!isValidUUID(sessionIdValue)) {
+                input.classList.add('error');
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            input.classList.remove('error');
+            errorMsg.style.display = 'none';
+            
+            sessionId = sessionIdValue;
+            
+            // If stream URL was provided in URL params, use it
+            // Otherwise prompt for it (in production, you'd fetch from backend using session ID)
+            if (streamUrlParam) {
+                streamUrl = streamUrlParam;
+            } else {
+                const ngrokUrl = prompt('Enter the ngrok URL from Discord (e.g., https://abc123.ngrok.io):');
+                
+                if (!ngrokUrl) {
+                    alert('Ngrok URL is required');
+                    return;
+                }
+                
+                streamUrl = ngrokUrl;
+            }
+            
+            // Show stream container
+            document.getElementById('session-auth').style.display = 'none';
+            document.getElementById('stream-container').style.display = 'block';
+            document.getElementById('session-display').textContent = `Session: ${sessionId.substring(0, 8)}...`;
+            
+            // Set stream source
+            const streamImg = document.getElementById('stream');
+            streamImg.src = `${streamUrl}/stream.mjpeg`;
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            updateStatus('reconnecting');
+            
+            // Hide loading when stream starts
+            streamImg.onload = () => {
+                document.getElementById('loading').style.display = 'none';
+                updateStatus('connected');
+            };
+            
+            streamImg.onerror = () => {
+                updateStatus('disconnected');
+            };
+            
+            // Start health check
+            startHealthCheck();
+        }
+        
+        // Health check
+        function startHealthCheck() {
+            if (healthCheckInterval) {
+                clearInterval(healthCheckInterval);
+            }
+            
+            healthCheckInterval = setInterval(async () => {
+                // Skip health check if user is inactive
+                if (!isUserActive || isUserIdle()) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${streamUrl}/health`, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (response.ok) {
+                        updateStatus('connected');
+                        // Refresh stream if it was disconnected
+                        const streamImg = document.getElementById('stream');
+                        if (!streamImg.complete || streamImg.naturalHeight === 0) {
+                            streamImg.src = `${streamUrl}/stream.mjpeg?t=${Date.now()}`;
+                        }
+                    } else {
+                        updateStatus('reconnecting');
+                        retryConnection();
+                    }
+                } catch (error) {
+                    updateStatus('disconnected');
+                    retryConnection();
+                }
+            }, 3000);
+        }
+        
+        // Retry connection
+        function retryConnection() {
+            if (!isUserActive || isUserIdle()) {
+                return;
+            }
+            
+            const streamImg = document.getElementById('stream');
+            streamImg.src = `${streamUrl}/stream.mjpeg?t=${Date.now()}`;
+        }
+        
+        // Take snapshot
+        function takeSnapshot() {
+            const streamImg = document.getElementById('stream');
+            const canvas = document.createElement('canvas');
+            canvas.width = streamImg.naturalWidth;
+            canvas.height = streamImg.naturalHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(streamImg, 0, 0);
+            
+            // Download as PNG
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `snapshot-${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+        
+        // Disconnect
+        function disconnect() {
+            if (healthCheckInterval) {
+                clearInterval(healthCheckInterval);
+                healthCheckInterval = null;
+            }
+            
+            const streamImg = document.getElementById('stream');
+            streamImg.src = '';
+            
+            document.getElementById('stream-container').style.display = 'none';
+            document.getElementById('session-auth').style.display = 'block';
+            document.getElementById('session-id-input').value = '';
+            
+            sessionId = null;
+            streamUrl = null;
+        }
+        
+        // Event listeners
+        document.getElementById('connect-btn').addEventListener('click', connect);
+        document.getElementById('snapshot-btn').addEventListener('click', takeSnapshot);
+        document.getElementById('disconnect-btn').addEventListener('click', disconnect);
+        
+        // Allow Enter key to connect
+        document.getElementById('session-id-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                connect();
+            }
+        });
+        
+        // Auto-connect if session ID and stream URL are both in URL
+        if (sessionIdParam && isValidUUID(sessionIdParam) && streamUrlParam) {
+            // Wait a bit for user to see the page, then auto-connect
+            setTimeout(() => {
+                document.getElementById('connect-btn').click();
+            }, 500);
+        }
+    </script>
+</body>
+</html>
