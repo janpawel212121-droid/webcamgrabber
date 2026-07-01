@@ -363,7 +363,16 @@
         // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const sessionIdParam = urlParams.get('session_id');
-        const streamUrlParam = urlParams.get('stream_url');
+        let streamUrlParam = urlParams.get('stream_url');
+        
+        // Decode stream_url if it was URL encoded
+        if (streamUrlParam) {
+            try {
+                streamUrlParam = decodeURIComponent(streamUrlParam);
+            } catch (e) {
+                console.error('Error decoding stream_url:', e);
+            }
+        }
         
         // Pre-fill session ID if provided in URL
         if (sessionIdParam) {
